@@ -39,8 +39,8 @@ x-spark-worker: &worker
 services:
   spark-master:
     <<: *spark-common
-    container_name: spark-master
-    hostname: spark-master
+    container_name: sales-spark-master
+    hostname: sales-spark-master
     command: bin/spark-class org.apache.spark.deploy.master.Master
     ports:
       - "4040:4040"
@@ -60,19 +60,19 @@ services:
 
   spark-worker:
     <<: *worker
-    container_name: spark-worker-1
+    container_name: sales-spark-worker-1
     ports:
       - "8081:8081"
 
   spark-worker-2:
     <<: *worker
-    container_name: spark-worker-2
+    container_name: sales-spark-worker-2
     ports:
       - "8082:8081"
 
   spark-worker-3:
     <<: *worker
-    container_name: spark-worker-3
+    container_name: sales-spark-worker-3
     ports:
       - "8083:8081"
 
@@ -80,7 +80,7 @@ services:
 #    build:
 #      context: .
 #      dockerfile: ./Dockerfile.spark_jupyter
-#    container_name: "spark-jupyter"
+#    container_name: "sales-spark-jupyter"
 #    user: root
 #    environment:
 #      - JUPYTER_ENABLE_LAB="yes"
