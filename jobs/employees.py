@@ -1,5 +1,9 @@
 from typing import Any, Dict, List, Optional, Literal, Union
-from pyspark.sql.functions import explode, split, trim, lower, col, expr, lit, when
+from pyspark.sql.functions import (
+    explode, split, trim, lower, col, max, count, sum, avg, desc,
+    asc, expr, lit, when, regexp_replace, to_date, current_date,
+    current_timestamp, coalesce, date_format, row_number
+)
 from pyspark.sql import SparkSession, DataFrame
 from pyspark.sql.types import StructField, StructType, StringType, IntegerType, DoubleType, DateType, TimestampType
 from pyspark import SparkConf
@@ -20,38 +24,6 @@ logging.basicConfig(
 )
 
 local_tz = pytz.timezone("Asia/Ho_Chi_Minh")
-
-def get_dataframe(
-    spark: SparkSession,
-    data: Any,
-    schema: Optional[Union[str, StructType]] = None,
-    verifySchema: bool = True
-) -> DataFrame:
-    try:
-        df = spark.createDataFrame(
-            data=data,
-            schema=schema,
-            verifySchema=verifySchema
-        )
-        logging.info(f"Read DataFrame, {df.count()} rows, {len(df.columns)} columns, schema: {df.schema}.")
-        return df
-    except Exception as e:
-        logging.error(e)
-
-
-def save_dataframe(
-    df: DataFrame,
-    path: Union[Path, str],
-    mode: Literal["overwrite", "append", "overwrite-none"] = "overwrite",
-    format: Literal["csv", "parquet"] = "csv",
-) -> None:
-    try:
-        if isinstance(path, str):
-            path = Path(path).as_posix()
-        df.write.mode(mode).format(format).save(path)
-        logging.info(f"Saved DataFrame, {df.count()} rows, {len(df.columns)} columns, schema: {df.schema}, path: {path}, mode: {mode}, format: {format}.")
-    except Exception as e:
-        logging.error(e)
 
 
 if __name__ == "__main__":
@@ -94,33 +66,62 @@ if __name__ == "__main__":
     spark = (
         SparkSession
         .builder
-        .appName("Spark Sales")
+        .appName("Employees")
         .master("local[*]")
         .getOrCreate()
     )
 
-    df = get_dataframe(spark, data, schema)
+    df = spark.createDataFrame(data=data, schema=schema, verifySchema=True)
     num_partitions = df.rdd.getNumPartitions()
     logging.info(f"Number of partitions: {num_partitions}.")
 
     df = df.withColumns(
         {
             "age": col("age").cast(IntegerType()),
-            "salary": col("salary").cast(DoubleType()),
-            "hire_date": col("hire_date").cast(DateType())
+            "salary": col("salary").cast(DoubleType())
         }
     )
 
-    df_salary_gt_50000 = df.where("salary > 50000")
-    logging.info(f"Filtered DataFrame by conditions: salary > 50000.")
-    num_partitions = df_salary_gt_50000.rdd.getNumPartitions()
-    logging.info(f"Number of partitions: {num_partitions}.")
+    df = df.withColumn(
+        "gender",
+        when(col("gender") == "Male", "M")
+        .when(col("gender") == "Female", "F")
+        .otherwise(None)
+    )
+    # df = df.withColumn(
+    #     "gender",
+    #     expr(
+    #         """
+    #             case
+    #                 when gender = 'Male' then 'M'
+    #                 when gender = 'Female' then 'F'
+    #             else null
+    #             end
+    #         """
+    #     )
+    # )
 
-    save_dataframe(
-        df_salary_gt_50000,
-        path="datasets/output/employees_salary_gt_50000.csv",
-        mode="overwrite",
-        format="csv"
+    df = df.withColumn(
+        "hire_date",
+        to_date(col("hire_date"), "yyyy-MM-dd")
+    )
+    df = df.withColumn(
+        "uploaded_time",
+        lit(datetime.now(tz=local_tz))
+    )
+    df = df.withColumn("date_now", current_date()).withColumn("timestamp_now", current_timestamp())
+    df = df.withColumn(
+        "hire_date_str",
+        date_format(col("hire_date"), "yyyy/MM/dd")
+    )
+    df = df.withColumn(
+        "time_zone",
+        date_format(col("timestamp_now"), "z")
+    )
+
+    df = df.withColumn(
+        "tax",
+        col("salary") * 0.2
     )
 
     df_filtered = df.select(
@@ -129,47 +130,42 @@ if __name__ == "__main__":
         expr("cast(age as int) as age"),
         df.salary
     )
-    df_filtered = df.selectExpr(
-        "employee_id as emp_id",
-        "name",
-        "cast(age as int) as age",
-        "salary"
-    )
+    # df_filtered = df.selectExpr(
+    #     "employee_id as emp_id",
+    #     "name",
+    #     "cast(age as int) as age",
+    #     "salary"
+    # )
 
-    df_age_gt_30 = df_filtered.select("emp_id", "name", "age", "salary").where("age > 30")
-    save_dataframe(
-        df_age_gt_30,
-        path="datasets/output/employees_age_gt_30.csv",
-        mode="overwrite",
-        format="csv"
-    )
+    logging.info(f"Cast schema: {df.schema}")
 
-    df_taxed = df_filtered.withColumn(
-        "tax",
-        col("salary") * 0.2
-    )
+    df_salary_gt_50000 = df.where("salary > 50000")
+    logging.info(f"Filtered DataFrame by conditions: salary > 50000.")
+    num_partitions = df_salary_gt_50000.rdd.getNumPartitions()
+    logging.info(f"Number of partitions: {num_partitions}.")
+    path_salary_gt_50000 = Path("datasets/output/employees_salary_gt_50000.csv").as_posix()
+    df_salary_gt_50000.write.mode("overwrite").format("csv").save(path_salary_gt_50000)
 
-    df_taxed = df_filtered.withColumn(
-        "uploaded_time",
-        lit(datetime.now(tz=local_tz))
-    )
+    df_age_gt_30 = df.select("emp_id", "name", "age", "salary").where("age > 30")
+    path_age_gt_30 = Path("datasets/output/employees_age_gt_30.csv").as_posix()
+    df_age_gt_30.write.mode("overwrite").format("csv").save(path_age_gt_30)
 
-    df_gender = df.withColumn(
+    df_name = df.withColumn(
+        "new_name",
+        regexp_replace(col("name"), "J", "Z")
+    )
+    path_name = Path("datasets/output/employees_name.csv").as_posix()
+    df_name.write.mode("overwrite").format("csv").save(path_name)
+
+    df_dated = df.na.drop("all")
+    df_dated = df.withColumn(
         "gender",
-        when(col("gender") == "Male", "M")
-        .when(col("gender") == "Female", "F")
-        .otherwise(None)
+        coalesce(col("gender")),
+        lit("O")
     )
-    df_gender = df.withColumn(
-        "gender",
-        expr(
-            """
-                case
-                    when gender = 'Male' then 'M'
-                    when gender = 'Female' then 'F'
-                else null
-                end
-            """
-        )
-    )
-# docker exec -it sales-spark-master-1 spark-submit --master spark://172.18.0.2:7077 --deploy-mode client /opt/bitnami/spark/jobs/employees.py
+
+    df_unique = df.distinct()
+    df_dept_id = df.select("department_id").distinct()
+
+    df = spark.read.format("csv").load("datasets/input/emp.csv")
+# docker exec -it sales-spark-master spark-submit --master spark://172.18.0.2:7077 --deploy-mode client /opt/bitnami/spark/jobs/employees.py
