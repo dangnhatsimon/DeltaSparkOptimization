@@ -3,20 +3,18 @@ version: "3"
 x-spark-common: &spark-common
   build:
     context: .
-    dockerfile: ./Dockerfile
+    dockerfile: ./spark/Dockerfile
   volumes:
-    - ./config:/opt/bitnami/spark/conf
-    - ./jobs:/opt/bitnami/spark/jobs
-    - ./jobs:/opt/notebooks
+    - ./spark/config:/opt/bitnami/spark/conf
+    - ./spark/jobs:/opt/bitnami/spark/jobs
     - ./datasets:/opt/bitnami/spark/datasets
-    - ./spark-events:/opt/bitnami/spark/spark-events
+    - ./spark/spark-events:/opt/bitnami/spark/tmp/spark-events
   networks:
     - sales
 
-
 x-spark-worker: &worker
   <<: *spark-common
-  command: bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+  command: bin/spark-class org.apache.spark.deploy.worker.Worker spark://sales-spark-master:7077
   depends_on:
     - spark-master
   environment:
@@ -29,12 +27,12 @@ x-spark-worker: &worker
     SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED: no
     SPARK_SSL_ENABLED: no
     SPARK_METRICS_ENABLED: true
+    SPARK_NO_DAEMONIZE: false
   healthcheck:
     test: [ "CMD", "curl", "-f", "http://localhost:8081" ]
     interval: 10s
     timeout: 5s
     retries: 5
-
 
 services:
   spark-master:
@@ -43,7 +41,6 @@ services:
     hostname: sales-spark-master
     command: bin/spark-class org.apache.spark.deploy.master.Master
     ports:
-      - "4040:4040"
       - "9090:8080"
       - "7077:7077"
     environment:
@@ -52,6 +49,7 @@ services:
       - SPARK_RPC_ENCRYPTION_ENABLED=no
       - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
       - SPARK_SSL_ENABLED=no
+      - SPARK_NO_DAEMONIZE=false
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8080" ]
       interval: 5s
@@ -76,23 +74,23 @@ services:
     ports:
       - "8083:8081"
 
-#  spark-jupyter:
-#    build:
-#      context: .
-#      dockerfile: ./Dockerfile.spark_jupyter
-#    container_name: "sales-spark-jupyter"
-#    user: root
-#    environment:
-#      - JUPYTER_ENABLE_LAB="yes"
-#      - GRANT_SUDO="yes"
-#    volumes:
-#      - ./notebooks:/home/jovyan/work
-#      - ./notebooks/spark-defaults.conf:/usr/local/spark/conf/spark-defaults.conf
-#    ports:
-#      - "8888:8888"
-#      - "4040:4040"
-#    networks:
-#      - sales
+  spark-jupyter:
+    build:
+      context: .
+      dockerfile: ./jupyter/Dockerfile
+    container_name: sales-spark-jupyter
+    environment:
+      - JUPYTER_ENABLE_LAB="yes"
+      - GRANT_SUDO="yes"
+    volumes:
+      - ./jupyter/config:/usr/local/spark/conf
+      - ./jupyter/notebooks:/home/jovyan/work
+      - ./datasets:/home/jovyan/work/datasets
+    ports:
+      - "8888:8888"
+      - "4040:4040"
+    networks:
+      - sales
 
 networks:
   sales:
