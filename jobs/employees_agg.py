@@ -70,7 +70,7 @@ if __name__ == "__main__":
         SparkSession
         .builder
         .appName("Employees Aggregation")
-        .master("spark://sales-spark-master:7077")
+        .master("spark://delta-spark-master:7077")
         .getOrCreate()
     )
 
@@ -143,4 +143,4 @@ if __name__ == "__main__":
         )
     )
 
-# docker exec -it sales-spark-master spark-submit --master spark://172.18.0.2:7077 --deploy-mode client /opt/bitnami/spark/jobs/employees_agg.py
+# docker exec -it delta-spark-master spark-submit --master spark://172.18.0.2:7077 --deploy-mode client /opt/bitnami/spark/jobs/employees_agg.py

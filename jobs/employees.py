@@ -168,4 +168,4 @@ if __name__ == "__main__":
     df_dept_id = df.select("department_id").distinct()
 
     df = spark.read.format("csv").load("datasets/input/emp.csv")
-# docker exec -it sales-spark-master spark-submit --master spark://172.18.0.2:7077 --deploy-mode client /opt/bitnami/spark/jobs/employees.py
+# docker exec -it delta-spark-master spark-submit --master spark://172.18.0.2:7077 --deploy-mode client /opt/bitnami/spark/jobs/employees.py
