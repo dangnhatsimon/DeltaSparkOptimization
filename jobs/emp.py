@@ -19,11 +19,7 @@ from datetime import datetime
 import pytz
 import time
 
-logging.basicConfig(
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    datefmt="%y-%m-%d %H:%M:%S",
-    level=logging.DEBUG
-)
+
 
 local_tz = pytz.timezone("Asia/Ho_Chi_Minh")
 
